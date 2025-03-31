@@ -43,7 +43,7 @@ folder named `HD-EPIC` under the path you specify.
 The script accepts a number of arguments that allow you to specify what you want to download. 
 By default the script will download **everything**. 
 
-You can run `python hd-epic-downloader -h` to see the script usage.
+You can run `python hd-epic-downloader.py -h` to see the script usage.
 
 ### Download only certain data types
 
