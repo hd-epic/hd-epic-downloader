@@ -126,6 +126,8 @@ def create_parser():
     parser.add_argument("output-path", type=Path, help="Path where you want to download the dataset")
     parser.add_argument('--videos', dest='what', action='append_const', const='videos',
                         help='Download video files')
+    parser.add_argument('--vrs', dest='what', action='append_const', const='vrs',
+                        help='Download vrs files')
     parser.add_argument('--digital-twin', dest='what', action='append_const', const='digital-twin',
                         help='Download digital twin files')
     parser.add_argument('--slam-gaze', dest='what', action='append_const', const='slam-and-gaze',
@@ -138,15 +140,14 @@ def create_parser():
                         help='Download consent form')
     parser.add_argument('--acquisition-guidelines', dest='what', action='append_const',
                         const='acquisitionguidelines', help='Download acquisition guidelines')
-    parser.add_argument('--vrs', dest='what', action='append_const', const='vrs',
-                        help='Download vrs files')
     parser.add_argument('--participants', nargs='?', type=str, default='all',
                         help='Specify participants IDs. You can specify a single participant, e.g. `--participants 1` '
                              'or a comma-separated list of them, e.g. `--participants 1,2,3`. '
-                             'Participants range between 1 and 9')
+                             'Participants numbers must range between 1 and 9')
     parser.add_argument('--dry-run', action='store_true', help='Runs the script without actually '
-                                                               'downloading any files. This will create '
-                                                               'folders and empty files')
+                                                               'downloading any files. This will connect to the server '
+                                                               'but will not download any files. The script will '
+                                                               'create folders and empty files')
 
     return parser
 
@@ -193,16 +194,18 @@ def load_files():
 
 def main(args):
     if args.what is None:
-        args.what = ['videos', 'digital-twin', 'slam-and-gaze', 'audio-hdf5', 'hands-masks', 'consent form',
-                     'acquisitionguidelines', 'vrs']
+        args.what = ['videos', 'vrs', 'digital-twin', 'slam-and-gaze', 'audio-hdf5', 'hands-masks', 'consent form',
+                     'acquisitionguidelines']
     if args.participants != 'all':
-        args.participants = [p.strip() for p in args.participants.split(',')]
-        string_check = len(args.participants[0]) == 3 and args.participants[0][0] == 'P'
-        int_check = len(args.participants[0]) == 1
-        assert int_check or string_check, 'Invalid participant format. ' \
-                                          'Please enter the participants in numerical (1), ' \
-                                          'or string format (P01).'
-        args.participants = list(map(int, args.participants)) if int_check else args.participants
+        try:
+            args.participants = [p.strip() for p in args.participants.split(',')]
+            p_check = all(int(p) in range(1, 10) for p in args.participants)
+
+            if not p_check:
+                sys.exit('Invalid participants number. Participants numbers must be between 1 and 9')
+        except (ValueError, AttributeError):
+            sys.exit(('Invalid participants format. Please specify participants with comma-separated '
+                      'integer numbers in [1, 9]. For example, `--participants 1,2,3`'))
 
     parts = load_files()
     to_download = []
@@ -216,7 +219,7 @@ def main(args):
         if args.participants == 'all':
             r = range(1, 10)
         else:
-            r = args.participants
+            r = list(set(args.participants))
 
         participants = (f'P0{i}' for i in r)
 
