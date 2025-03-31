@@ -1,15 +1,17 @@
+import hashlib
 import traceback
 
 try:
     import urllib.request
     import urllib.error
+    import urllib.parse
     from pathlib import Path
     import argparse
     import sys
     import re
 except ImportError as e:
-    print('Error: {}'.format(e))
     print('This script works with Python 3.5+. Please use a more recent version of Python')
+    print(traceback.format_exc(), file=sys.stderr)
     exit(-1)
 
 try:
@@ -35,12 +37,44 @@ def sizeof_fmt(num, suffix="B"):
     return f"{num:.1f}Yi{suffix}"
 
 
-def download_file(url, output_path, block_size=8192000, dry_run=False):
+def md5_checksum(path):
+    hash_md5 = hashlib.md5()
+
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+
+    return hash_md5.hexdigest()
+
+
+def download_file(url, output_path, block_size=8192000, dry_run=False, md5=None):
     filename = output_path.name
     path = output_path.expanduser().resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     progress_bar = None
     base_str = f"Downloading {filename}"
+
+    if not dry_run and md5 is not None and path.exists():
+        local_md5 = md5_checksum(path)
+
+        if local_md5 == md5:
+            msg = f"File {filename} already downloaded, skipping this file"
+
+            if tqdm_available:
+                tqdm.write(msg)
+            else:
+                print(msg)
+
+            return
+        else:
+            msg = (f"File {filename} exists locally but md5 checksums don't match\n"
+                   f"This is likely due to a partial download or a corrupted file\n"
+                   f"Will download the file now")
+
+            if tqdm_available:
+                tqdm.write(msg)
+            else:
+                print(msg)
 
     with open(path, "wb") as output_file:
         with urllib.request.urlopen(url) as response:
@@ -100,8 +134,8 @@ def create_parser():
                         help='Download audio files')
     parser.add_argument('--hands', dest='what', action='append_const', const='hands-masks',
                         help='Download hand mask files')
-    parser.add_argument('--consent-forms', dest='what', action='append_const', const='consent form',
-                        help='Download consent forms')
+    parser.add_argument('--consent-form', dest='what', action='append_const', const='consent form',
+                        help='Download consent form')
     parser.add_argument('--acquisition-guidelines', dest='what', action='append_const',
                         const='acquisitionguidelines', help='Download acquisition guidelines')
     parser.add_argument('--vrs', dest='what', action='append_const', const='vrs',
@@ -120,32 +154,38 @@ def create_parser():
 def load_files():
     parts = {}
 
-    with open(Path('data/files.txt').resolve(), 'r') as f:
+    with open(Path('data/md5.txt').resolve(), 'r') as f:
         for line in f:
-            p = Path(line.strip())
+            splits = line.split()
+            md5 = splits[0]
+            p = Path(' '.join(splits[1:]).strip())
 
             if len(p.suffixes) == 0:
                 continue
 
             parents = p.parents
-            what = parents[-2].name.lower()
+
+            if len(parents) == 1:
+                what = 'root'
+            else:
+                what = parents[-2].name.lower()
 
             if what not in parts:
                 parts[what] = {}
 
             if len(parents) == 2:
                 if 'no_participant' in parts[what]:
-                    parts[what]['no_participant'].append(p)
+                    parts[what]['no_participant'].append((p, md5))
                 else:
-                    parts[what]['no_participant'] = [p]
-            else:
+                    parts[what]['no_participant'] = [(p, md5)]
+            elif len(parents) > 2:
                 participant = parents[-3].name
                 assert bool(re.match('P0[0-9]', participant))
 
                 if participant in parts[what]:
-                    parts[what][participant].append(p)
+                    parts[what][participant].append((p, md5))
                 else:
-                    parts[what][participant] = [p]
+                    parts[what][participant] = [(p, md5)]
 
 
     return parts
@@ -153,8 +193,8 @@ def load_files():
 
 def main(args):
     if args.what is None:
-        args.what = ('videos', 'digital-twin', 'slam-and-gaze', 'audio-hdf5', 'hands-masks', 'consent form',
-                     'acquisitionguidelines', 'vrs')
+        args.what = ['videos', 'digital-twin', 'slam-and-gaze', 'audio-hdf5', 'hands-masks', 'consent form',
+                     'acquisitionguidelines', 'vrs']
     if args.participants != 'all':
         args.participants = [p.strip() for p in args.participants.split(',')]
         string_check = len(args.participants[0]) == 3 and args.participants[0][0] == 'P'
@@ -167,14 +207,18 @@ def main(args):
     parts = load_files()
     to_download = []
 
+    args.what.append('root')
+
     for what in args.what:
         if 'no_participant' in parts[what]:
             to_download.extend(parts[what]['no_participant'])
 
         if args.participants == 'all':
-            participants = (f'P0{i}' for i in range(1, 10))
+            r = range(1, 10)
         else:
-            participants = args.participants
+            r = args.participants
+
+        participants = (f'P0{i}' for i in r)
 
         for p in participants:
             if p in parts[what]:
@@ -198,11 +242,12 @@ def download(args, to_download):
 
     errors = 0
 
-    for i, f in enumerate(to_download):
-        url = _BASE_URL_ + str(f)
+    for i, t in enumerate(to_download):
+        f, md5 = t
+        url = _BASE_URL_ + urllib.parse.quote(str(f))
 
         try:
-            download_file(url, output_path / f, dry_run=args.dry_run)  # TODO check file exists with MD5 and skip if it does
+            download_file(url, output_path / f, dry_run=args.dry_run, md5=md5)
         except Exception:
             print(f'An error occurred: while trying to download {url}. Skipping this file. The error was:\n\n')
             print(traceback.format_exc(), file=sys.stderr)
@@ -213,7 +258,10 @@ def download(args, to_download):
         else:
             progress_bar.update()
 
-    print_header(f"All files downloaded! Errors: {errors}")
+    if errors == 0:
+        print_header(f"All files downloaded without errors!")
+    else:
+        print_header(f"All done, but one or more files were not downloaded! N. of errors: {errors}/{n_files}")
 
     if progress_bar is not None:
         progress_bar.close()
@@ -226,8 +274,6 @@ def print_header(str_):
 
 
 if __name__ == "__main__":
-    # test_url = "https://data.bris.ac.uk/datasets/3cqb5b81wk2dc2379fx1mrxh47/Videos/P03/P03-20240216-084005.mp4"
-    # download_file(test_url, '~/Desktop')
     parser = create_parser()
     args = parser.parse_args()
     main(args)
