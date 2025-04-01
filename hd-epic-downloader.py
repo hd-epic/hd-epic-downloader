@@ -161,8 +161,8 @@ def create_parser():
 
 def choose_files(what_filter=None, participants_filter=None, video_ids_filter=None):
     parts = {}
-    participant_pattern = re.compile('P0[0-9]')
-    video_id_pattern = re.compile('P0[0-9]-2024\d{4}-\d{6}')
+    participant_pattern = re.compile(r'P0[0-9]')
+    video_id_pattern = re.compile(r'P0[0-9]-2024\d{4}-\d{6}')
 
     with open(Path('data/md5.txt').resolve(), 'r') as f:
         for line in f:
@@ -232,7 +232,7 @@ def main(args):
         participants_filter = None
 
     if args.video_id is not None:
-        video_id_pattern = re.compile('^P0[0-9]-2024\d{4}-\d{6}$')
+        video_id_pattern = re.compile(r'^P0[0-9]-2024\d{4}-\d{6}$')
         video_ids = args.video_id.split(',')
         v_check = all(video_id_pattern.match(vid) for vid in video_ids)
 
