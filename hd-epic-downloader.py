@@ -9,7 +9,8 @@ try:
     import argparse
     import sys
     import re
-except ImportError as e:
+    assert sys.version_info >= (3, 6)
+except Exception as e:
     print('This script works with Python 3.6+. Please use a more recent version of Python')
     print(traceback.format_exc(), file=sys.stderr)
     exit(-1)
@@ -143,7 +144,13 @@ def create_parser():
     parser.add_argument('--participants', nargs='?', type=str, default='all',
                         help='Specify participants IDs. You can specify a single participant, e.g. `--participants 1` '
                              'or a comma-separated list of them, e.g. `--participants 1,2,3`. '
-                             'Participants numbers must range between 1 and 9')
+                             'Participants numbers must range between 1 and 9. This argument cannot be used in '
+                             'combination with --video-id')
+    parser.add_argument('--video-id', nargs='?', type=str, default=None,
+                        help='Specify video IDs. Video IDs must be comma-separated strings with the following format: '
+                             'P0X-2024XXXX-XXXXXX, e.g. P01-20240202-110250,P03-20240216-084005,P07-20240529-102652. '
+                             'This will download the specified data types (everything by default) only for the '
+                             'specified videos. This argument cannot be used in combination with --participants.')
     parser.add_argument('--dry-run', action='store_true', help='Runs the script without actually '
                                                                'downloading any files. This will connect to the server '
                                                                'but will not download any files. The script will '
@@ -152,9 +159,10 @@ def create_parser():
     return parser
 
 
-def load_files():
+def choose_files(what_filter=None, participants_filter=None, video_ids_filter=None):
     parts = {}
-    pattern = re.compile('P0[0-9]')
+    participant_pattern = re.compile('P0[0-9]')
+    video_id_pattern = re.compile('P0[0-9]-2024\d{4}-\d{6}')
 
     with open(Path('data/md5.txt').resolve(), 'r') as f:
         for line in f:
@@ -165,27 +173,34 @@ def load_files():
             if len(p.suffixes) == 0:
                 continue
 
+            if video_ids_filter is not None:
+                if not bool(video_id_pattern.search(str(p))) or not any(vid in str(p) for vid in video_ids_filter):
+                    continue  # we skip all non video-specific files when filtering by video
+
             what = p
             participant = 'no_participant'
 
             while str(what.parent) != '.':
                 what = what.parent
 
-                if bool(pattern.match(what.name)):
+                if bool(participant_pattern.match(what.name)):
                     participant = what.name
+
+            if participants_filter is not None and participant not in participants_filter:
+                continue  # no-participant stuff will not be added
 
             if what == p:
                 what = 'root'
             else:
                 what = what.name.lower()
 
-            if what not in parts:
-                parts[what] = {}
+            if what_filter is not None and what not in what_filter:
+                continue
 
-            if participant in parts[what]:
-                parts[what][participant].append((p, md5))
+            if what in parts:
+                parts[what].append((p, md5))
             else:
-                parts[what][participant] = [(p, md5)]
+                parts[what] = [(p, md5)]
 
     return parts
 
@@ -194,36 +209,44 @@ def main(args):
     if args.what is None:
         args.what = ['videos', 'vrs', 'digital-twin', 'slam-and-gaze', 'audio-hdf5', 'hands-masks', 'consent form',
                      'acquisitionguidelines']
+
+    args.what.append('root')
+
     if args.participants != 'all':
+        if args.video_id is not None:
+            sys.exit('You cannot specify both participants and video ids. Please use only one option')
+
         try:
             args.participants = [p.strip() for p in args.participants.split(',')]
             p_check = all(int(p) in range(1, 10) for p in args.participants)
 
             if not p_check:
                 sys.exit('Invalid participants number. Participants numbers must be between 1 and 9')
+
+            participants_filter = list(f'P0{i}' for i in set(args.participants))
+
         except (ValueError, AttributeError):
             sys.exit(('Invalid participants format. Please specify participants with comma-separated '
                       'integer numbers in [1, 9]. For example, `--participants 1,2,3`'))
+    else:
+        participants_filter = None
 
-    parts = load_files()
+    if args.video_id is not None:
+        video_id_pattern = re.compile('^P0[0-9]-2024\d{4}-\d{6}$')
+        video_ids = args.video_id.split(',')
+        v_check = all(video_id_pattern.match(vid) for vid in video_ids)
+
+        if not v_check:
+            sys.exit(f'Invalid video id format. Video IDs must be comma-separated strings with the following format: '
+                     f'P0X-2024XXXX-XXXXXX')
+    else:
+        video_ids = None
+
+    parts = choose_files(what_filter=args.what, participants_filter=participants_filter, video_ids_filter=video_ids)
     to_download = []
 
-    args.what.append('root')
-
-    for what in args.what:
-        if 'no_participant' in parts[what]:
-            to_download.extend(parts[what]['no_participant'])
-
-        if args.participants == 'all':
-            r = range(1, 10)
-        else:
-            r = list(set(args.participants))
-
-        participants = (f'P0{i}' for i in r)
-
-        for p in participants:
-            if p in parts[what]:
-                to_download.extend(parts[what][p])
+    for files in parts.values():
+        to_download.extend(files)
 
     download(args, to_download)
 
@@ -250,8 +273,14 @@ def download(args, to_download):
         try:
             download_file(url, output_path / f, dry_run=args.dry_run, md5=md5)
         except Exception:
-            print(f'An error occurred: while trying to download {url}. Skipping this file. The error was:\n\n')
-            print(traceback.format_exc(), file=sys.stderr)
+            err_msg = f'An error occurred: while trying to download {url}. Skipping this file. The error was:\n\n'
+
+            if progress_bar is None:
+                print(err_msg)
+                print(traceback.format_exc(), file=sys.stderr)
+            else:
+                tqdm.write(err_msg)
+                tqdm.write(traceback.format_exc(), file=sys.stderr)
             errors += 1
 
         if progress_bar is None:

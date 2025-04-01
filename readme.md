@@ -34,10 +34,10 @@ Download speed might be (very) slow depending on the region.
 Clone this repository and `cd` into the repository root folder. Then run the script as follows:
 
 ```bash
-python hd-epic-downloader ${output-path}
+python hd-epic-downloader.py ${output-path}
 ```
 
-Where `${output-path}` is the path where you want to download the dataset. Note that the script will create a 
+Where `${output-path}` is the path where you want to download the dataset. The script will create a 
 folder named `HD-EPIC` under the path you specify.
 
 The script accepts a number of arguments that allow you to specify what you want to download. 
@@ -60,19 +60,19 @@ If you want to download only subsets of the dataset, you can do so with the foll
 | `--consent-form`            | 80KB     | 
 | `--acquisition-guidelines`  | 70KB     | 
 
-If you want to download only videos, then:
+For example, if you only want to download videos, then:
 
 ```bash
 python hd-epic-downloader.py /home/data --videos
 ```
 
-Note that these arguments can be **combined** to download multiple things. For example:
+These arguments can be **combined** to download multiple things. For example:
 
 ```bash
-python hd-epic-downloader.py ---videos --vrs
+python hd-epic-downloader.py /home/data ---videos --vrs
 ```
 
-Will download both videos and VRS files. 
+Will only download videos and VRS files. 
 
 ### Specifying participants
 
@@ -82,7 +82,49 @@ Participants must be specified with a number ranging between 1 and 9, e.g. `--pa
 This argument can also be combined with the aforementioned arguments. For example:
 
 ```bash
-python hd-epic-downloader.py --videos --participants 1,2,3
+python hd-epic-downloader.py /home/data --videos --participants 1,2,3
 ```
 
-Will download only videos from `P01, P02` and `P03`.
+Will only download videos from `P01, P02` and `P03`.
+
+Note that only some data types are organised per participants. 
+When using the `--participants` argument the script will only download files organised per participant.
+Check the table below to see what is organised per participant and downloaded when using `--participants`.
+
+| Data          | Downloaded with `--participants` |
+|:--------------|:---------------------------------|
+| Videos        | Yes                              |
+| VRS           | Yes                              | 
+| Digital twin  | No                               |
+| Slam and gaze | Yes                              |
+| Audio HDF5    | Yes                              |
+| Hands masks   | No                               |
+
+### Specifying video IDs
+
+You can use the argument `--video-id` if you want to download data for specific video IDs. 
+Video IDs must be comma-separated strings with the following format: `P0X-2024XXXX-XXXXXX`.
+This will download the specified data types (everything by default) only for the specified videos. 
+
+Note that this argument cannot be used in combination with `--participants`, but it can be used with the data type 
+arguments to download only specific data types for specific videos. 
+For example:
+
+```bash
+python hd-epic-downloader.py /home/data --vrs --video-id P01-20240202-110250,P03-20240216-084005,P07-20240529-102652
+```
+
+Will only download the VRS files for the videos `P01-20240202-110250,P03-20240216-084005,P07-20240529-102652`.
+
+Note that only some data types are organised per video. 
+When using the `--video-id` argument the script will only download files organised per video.
+Check the table below to see what is organised per video and downloaded when using `--video-id`.
+
+| Data          | Downloaded with `--video-id` |
+|:--------------|:-----------------------------|
+| Videos        | Yes                          |
+| VRS           | Yes                          | 
+| Digital twin  | No                           |
+| Slam and gaze | Yes                          |
+| Audio HDF5    | No                           |
+| Hands masks   | No                           |
