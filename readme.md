@@ -5,7 +5,7 @@ its entirety or in parts (e.g. only VRS files). You can also download data for a
 
 ### Python version and libraries
 
-The script requires Python **3.5+** and  **no external libraries**. However, the script will use **tqdm** if it
+The script requires Python **3.6+** and  **no external libraries**. However, the script will use **tqdm** if it
 is detected in your environment to display progress bars and estimate download time. 
 Although optional, we recommend [installing tqdm](https://tqdm.github.io) for the best experience.
 

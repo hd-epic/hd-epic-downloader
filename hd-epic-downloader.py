@@ -10,7 +10,7 @@ try:
     import sys
     import re
 except ImportError as e:
-    print('This script works with Python 3.5+. Please use a more recent version of Python')
+    print('This script works with Python 3.6+. Please use a more recent version of Python')
     print(traceback.format_exc(), file=sys.stderr)
     exit(-1)
 
@@ -154,6 +154,7 @@ def create_parser():
 
 def load_files():
     parts = {}
+    pattern = re.compile('P0[0-9]')
 
     with open(Path('data/md5.txt').resolve(), 'r') as f:
         for line in f:
@@ -164,30 +165,27 @@ def load_files():
             if len(p.suffixes) == 0:
                 continue
 
-            parents = p.parents
+            what = p
+            participant = 'no_participant'
 
-            if len(parents) == 1:
+            while str(what.parent) != '.':
+                what = what.parent
+
+                if bool(pattern.match(what.name)):
+                    participant = what.name
+
+            if what == p:
                 what = 'root'
             else:
-                what = parents[-2].name.lower()
+                what = what.name.lower()
 
             if what not in parts:
                 parts[what] = {}
 
-            if len(parents) == 2:
-                if 'no_participant' in parts[what]:
-                    parts[what]['no_participant'].append((p, md5))
-                else:
-                    parts[what]['no_participant'] = [(p, md5)]
-            elif len(parents) > 2:
-                participant = parents[-3].name
-                assert bool(re.match('P0[0-9]', participant))
-
-                if participant in parts[what]:
-                    parts[what][participant].append((p, md5))
-                else:
-                    parts[what][participant] = [(p, md5)]
-
+            if participant in parts[what]:
+                parts[what][participant].append((p, md5))
+            else:
+                parts[what][participant] = [(p, md5)]
 
     return parts
 
