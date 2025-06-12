@@ -69,7 +69,7 @@ python hd-epic-downloader.py /home/data --videos
 These arguments can be **combined** to download multiple things. For example:
 
 ```bash
-python hd-epic-downloader.py /home/data ---videos --vrs
+python hd-epic-downloader.py /home/data --videos --vrs
 ```
 
 Will only download videos and VRS files. 
@@ -125,6 +125,6 @@ Check the table below to see what is organised per video and downloaded when usi
 | Videos        | Yes                          |
 | VRS           | Yes                          | 
 | Digital twin  | No                           |
-| Slam and gaze | Yes                          |
+| Slam and gaze | Gaze only                    |
 | Audio HDF5    | No                           |
 | Hands masks   | No                           |
