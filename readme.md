@@ -128,3 +128,7 @@ Check the table below to see what is organised per video and downloaded when usi
 | Slam and gaze | Gaze only                    |
 | Audio HDF5    | No                           |
 | Hands masks   | No                           |
+
+# Annotations
+
+Note that this script will download HD EPIC's data, not its annotations. You can find HD EPIC's annotations [here](https://github.com/hd-epic/hd-epic-annotations).
