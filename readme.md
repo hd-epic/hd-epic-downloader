@@ -25,9 +25,11 @@ In total the dataset size is 2.3 TB split as follows:
 Previously fully downloaded files will be skipped, so you can download large batches of files over multiple runs.
 Make sure you specify the same output path when running the script to resume previous downloads.  
 
-### Download speed
+### Download speed and alternative download
 
 Download speed might be (very) slow depending on the region.  
+
+We provide an alternative download through OneDrive. Please check [the dataset's website](https://hd-epic.github.io/index#download) for an updated download link.
 
 # Using the script
 
