@@ -131,6 +131,21 @@ Check the table below to see what is organised per video and downloaded when usi
 | Audio HDF5    | No                           |
 | Hands masks   | No                           |
 
+
+## SLAM
+
+### List of 3 Videos ran with COLMAP
+
+In paper section B.4, we mention:
+> Out of the 156 videos, 3 videos could not be successfully processed via SLAM API. For these videos, we run COLMAP [65, 66] following EPIC Fields [77] preprocessing to obtain camera poses and manually align them to the corresponding kitchen obtained from MPS.
+
+These 3 videos are: 
+```
+P02-20240210-113925
+P02-20240211-182630
+P06-20240510-140459
+```
+
 # Annotations
 
 Note that this script will download HD EPIC's data, not its annotations. You can find HD EPIC's annotations [here](https://github.com/hd-epic/hd-epic-annotations).
